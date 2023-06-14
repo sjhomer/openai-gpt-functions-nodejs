@@ -1,34 +1,40 @@
+// Import necessary modules
 import {ChatCompletionRequestMessage, Configuration, OpenAIApi} from "openai";
-import functions from "./chat/functions";
-import {ChatFunctionDefinition} from "./types";
-import {ChatCompletionRequestMessageFunctionCall} from "openai/api";
-import readline from "readline";
+import functions from "./chat/functions"; // Chat functions module
+import {ChatFunctionDefinition} from "./types"; // Type definitions
+import {ChatCompletionRequestMessageFunctionCall} from "openai/api"; // Function call type
+import readline from "readline"; // Readline for interactive command line interface
+import dotenv from 'dotenv-flow'; // Dotenv to manage environment variables
+dotenv.config(); // Load environment variables
 
-import dotenv from 'dotenv-flow';
-dotenv.config();
-
+// Configure OpenAI API with the API key from environment variables
 const configuration = new Configuration({
   apiKey: process.env.OPENAI_API_KEY,
 });
 const openai = new OpenAIApi(configuration);
 
+// Log a check if OpenAI is configured
 console.log('OpenAI Configured?', !!process.env.OPENAI_API_KEY);
 
+// Create a readline interface for user input
 const rl = readline.createInterface({
   input: process.stdin,
-  // output: process.stdout,
 });
 
+// Asynchronous function to run a conversation with OpenAI
 async function run_conversation() {
+  // Prompt user for a system message
   console.log("> Enter a system prompt:");
   const systemPrompt = await getUserInput();
 
+  // Initialize the conversation with the system message
   const conversation: ChatCompletionRequestMessage[] = [
     {
       role: "system",
       content: systemPrompt,
     },
   ];
+
   let response;
   let message;
   let functionCall;
@@ -36,6 +42,7 @@ async function run_conversation() {
   let functionResponse;
   let functionMessage: ChatCompletionRequestMessage;
 
+  // Prompt the user for the first question
   console.log("> What is your first question?");
   let userQuestion = await getUserInput();
   conversation.push({
@@ -44,6 +51,7 @@ async function run_conversation() {
   });
 
   do {
+    // Request a response from the OpenAI API
     response = await openai.createChatCompletion({
       model: process.env.OPENAI_MODEL || 'gpt-3.5-turbo-0613',
       messages: conversation,
@@ -52,6 +60,7 @@ async function run_conversation() {
 
     message = response.data.choices[0]?.message;
 
+    // Add the assistant's response to the conversation
     conversation.push({
       role: "assistant",
       content: message?.content || '... no response ...',
@@ -60,6 +69,7 @@ async function run_conversation() {
     functionCall = message?.function_call as ChatCompletionRequestMessageFunctionCall;
 
     if (functionCall?.name) {
+      // Handle function calls in the assistant's response
       functionName = functionCall.name;
       const functionDefinition = (functions as Record<string, ChatFunctionDefinition>)?.[functionName] || null;
 
@@ -67,6 +77,8 @@ async function run_conversation() {
 
       const functionParameters = JSON.parse(functionCall.arguments || "{}");
       const parameterKeys = Object.keys(functionParameters);
+
+      // Check for missing parameters in the function call
       const missingRequiredParameters = functionDefinition.metadata.parameters.required.filter(
         (param: string) => !parameterKeys.includes(param)
       );
@@ -78,6 +90,7 @@ async function run_conversation() {
         };
       } else {
         try {
+          // Call the function with the parameters from the function call
           functionResponse = await functionDefinition.resolver(functionParameters);
           functionMessage = {
             role: "function",
@@ -92,21 +105,24 @@ async function run_conversation() {
         }
       }
 
+      // Add the function message to the conversation
       conversation.push(functionMessage);
       console.log(`(debug) ${functionName} => ${functionMessage.content}` || "... chat response failed...");
     } else {
 
       // Don't show the users questions back at them
-      if (message?.role !== 'user'){
-          console.log(`> ${message?.content}` || "... chat response failed...");
+      if (message?.role !== 'user') {
+        console.log(`> ${message?.content}` || "... chat response failed...");
       }
 
+      // Prompt the user for the next question
       userQuestion = await getUserInput();
       conversation.push({
         role: "user",
         content: userQuestion,
       });
 
+      // Exit the conversation if the user types "exit"
       if (userQuestion.toLowerCase() === "exit") {
         break;
       }
@@ -116,6 +132,7 @@ async function run_conversation() {
   return response;
 }
 
+// Function to get user input from the command line
 function getUserInput(): Promise<string> {
   return new Promise((resolve) => {
     rl.question("> ", (answer: string) => {
@@ -124,12 +141,17 @@ function getUserInput(): Promise<string> {
   });
 }
 
+// Start the conversation
 run_conversation()
   .then((response) => {
+    // Log the final response from OpenAI
     console.log(response.data);
+    // Close the readline interface
     rl.close();
   })
   .catch((error) => {
+    // Log any errors that occurred
     console.error("Error:", error);
+    // Close the readline interface
     rl.close();
   });
