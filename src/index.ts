@@ -4,6 +4,9 @@ import functions from "./chat/functions"; // Chat functions module
 import {ChatFunctionDefinition} from "./types"; // Type definitions
 import {ChatCompletionRequestMessageFunctionCall} from "openai/api"; // Function call type
 import readline from "readline"; // Readline for interactive command line interface
+
+import fs from 'fs/promises'; // Import the promise version of fs
+
 import dotenv from 'dotenv-flow'; // Dotenv to manage environment variables
 dotenv.config(); // Load environment variables
 
@@ -23,9 +26,16 @@ const rl = readline.createInterface({
 
 // Asynchronous function to run a conversation with OpenAI
 async function run_conversation() {
+  let systemPrompt;
+  try {
+    systemPrompt = `Here is a set of project requirements. """${await fs.readFile('reqs.md', 'utf8')}""" Please convert these requirements into a markdown table.`;
+  } catch (error) {
+    console.error('Error reading file reqs.md:', error);
+    console.log("> Enter a system prompt:");
+    systemPrompt = await getUserInput();
+  }
   // Prompt user for a system message
-  console.log("> Enter a system prompt:");
-  const systemPrompt = await getUserInput();
+
 
   // Initialize the conversation with the system message
   const conversation: ChatCompletionRequestMessage[] = [
@@ -41,14 +51,17 @@ async function run_conversation() {
   let functionName;
   let functionResponse;
   let functionMessage: ChatCompletionRequestMessage;
+  let userQuestion;
 
   // Prompt the user for the first question
-  console.log("> What is your first question?");
-  let userQuestion = await getUserInput();
-  conversation.push({
-    role: "user",
-    content: userQuestion,
-  });
+  // console.log("> What is your first question? Or, blank to continue");
+  // let userQuestion = await getUserInput();
+  // if(userQuestion) {
+  //   conversation.push({
+  //     role: "user",
+  //     content: userQuestion,
+  //   });
+  // }
 
   do {
     // Request a response from the OpenAI API
@@ -56,6 +69,7 @@ async function run_conversation() {
       model: process.env.OPENAI_MODEL || 'gpt-3.5-turbo-0613',
       messages: conversation,
       functions: Object.values(functions).map((fn: any) => fn.metadata),
+      function_call:'auto'
     });
 
     message = response.data.choices[0]?.message;
@@ -77,6 +91,8 @@ async function run_conversation() {
 
       const functionParameters = JSON.parse(functionCall.arguments || "{}");
       const parameterKeys = Object.keys(functionParameters);
+
+      console.log(`(debug) calling ${functionName} with ${parameterKeys.join(", ")}` || "... chat response failed...");
 
       // Check for missing parameters in the function call
       const missingRequiredParameters = functionDefinition.metadata.parameters.required.filter(
