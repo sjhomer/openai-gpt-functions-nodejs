@@ -1,4 +1,3 @@
-import {ChatFunctionMetadata} from "../../types";
 import {openAiInstance} from "../openAiInstance";
 
 const metadata: ChatFunctionMetadata = {
@@ -22,14 +21,12 @@ async function resolver(args: any) {
     model: process.env.OPENAI_MODEL || 'gpt-3.5-turbo-0613',
     messages: [{
       role: "system",
-      content: `You will be provided a set of project requirements. It is your job to convert the requirements into a markdown table with following considerations in mind: 
-* Categories of work efforts
-* High level tasks, and their purpose
-* RACI considerations`,
+      content: `You will be provided a set of project requirements. It is your job to convert the requirements into a markdown table with following considerations in mind: * Categories of work efforts * High level tasks, and their purpose.`,
     }, {
       role: "user",
       content: args.requirements_text
-    }]
+    }],
+    temperature: 0,
   });
 
   // Return the model's response

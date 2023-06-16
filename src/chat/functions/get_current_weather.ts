@@ -1,4 +1,3 @@
-import {ChatFunctionMetadata} from "../../types";
 
 export const metadata: ChatFunctionMetadata = {
   name: "get_current_weather",
